@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>配置管理</title>
+  <link href="/webjars/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>body{padding:20px}</style>
+</head>
+<body>
+<div class="container">
+  <h4>MQTT连接配置</h4>
+  <div class="row g-2 mb-3">
+    <div class="col-md-6">
+      <label class="form-label">Server URI</label>
+      <input id="serverUri" class="form-control" placeholder="tcp://host:1883">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Client ID</label>
+      <input id="clientId" class="form-control" placeholder="clientId">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Username</label>
+      <input id="username" class="form-control" placeholder="username">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Password</label>
+      <input id="password" type="password" class="form-control" placeholder="password">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Timeout(s)</label>
+      <input id="timeout" class="form-control" value="10">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">KeepAlive(s)</label>
+      <input id="keepAlive" class="form-control" value="30">
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="saveConfig()">保存</button>
+
+  <hr/>
+  <h4>监听通道管理</h4>
+  <div class="row g-2 mb-2">
+    <div class="col-md-6">
+      <input id="topicName" class="form-control" placeholder="输入Topic名称">
+    </div>
+    <div class="col-md-4">
+      <input id="identifierPath" class="form-control" placeholder="标识位路径（如：id、data.id）">
+    </div>
+    <div class="col-md-2">
+      <button class="btn btn-success" onclick="addTopic()">添加</button>
+    </div>
+  </div>
+  <table class="table table-sm" id="topicTable">
+    <thead><tr><th>ID</th><th>Topic</th><th>标识位路径</th><th>启用</th><th>操作</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <a href="/">返回首页</a>
+</div>
+
+<script src="/webjars/axios/dist/axios.min.js"></script>
+<script>
+function saveConfig(){
+  const data = {
+    'app.mqtt.server-uri': document.getElementById('serverUri').value,
+    'app.mqtt.client-id': document.getElementById('clientId').value,
+    'app.mqtt.username': document.getElementById('username').value,
+    'app.mqtt.password': document.getElementById('password').value,
+    'app.mqtt.connection-timeout-seconds': document.getElementById('timeout').value,
+    'app.mqtt.keep-alive-seconds': document.getElementById('keepAlive').value
+  };
+  axios.post('/api/mqtt/config/save', data).then(()=>{ alert('保存成功'); loadConfig(); }).catch(e=>alert('失败:'+e));
+}
+
+function loadTopics(){
+  axios.get('/api/mqtt/topic/list').then(res=>{
+    const tbody = document.querySelector('#topicTable tbody');
+    tbody.innerHTML='';
+    (res.data.data||[]).forEach(t=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${t.id}</td><td>${t.topicName}</td><td>${t.identifierPath || '-'}</td><td>${t.isEnabled==1?'是':'否'}</td>`+
+        `<td><button class='btn btn-sm btn-secondary' onclick='toggle(${t.id},${t.isEnabled==1?0:1})'>${t.isEnabled==1?'禁用':'启用'}</button> `+
+        `<button class='btn btn-sm btn-danger' onclick='del(${t.id})'>删除</button></td>`;
+      tbody.appendChild(tr);
+    })
+  });
+}
+function loadConfig(){
+  axios.get('/api/mqtt/config/list').then(res=>{
+    const list = res.data && res.data.data ? res.data.data : [];
+    const map = {};
+    list.forEach(it=>{ map[it.configKey] = it.configValue || ''; });
+    if(map['app.mqtt.server-uri']!==undefined) document.getElementById('serverUri').value = map['app.mqtt.server-uri'];
+    if(map['app.mqtt.client-id']!==undefined) document.getElementById('clientId').value = map['app.mqtt.client-id'];
+    if(map['app.mqtt.username']!==undefined) document.getElementById('username').value = map['app.mqtt.username'];
+    if(map['app.mqtt.password']!==undefined) document.getElementById('password').value = map['app.mqtt.password'];
+    if(map['app.mqtt.connection-timeout-seconds']!==undefined) document.getElementById('timeout').value = map['app.mqtt.connection-timeout-seconds'];
+    if(map['app.mqtt.keep-alive-seconds']!==undefined) document.getElementById('keepAlive').value = map['app.mqtt.keep-alive-seconds'];
+  });
+}
+function addTopic(){
+  const name = document.getElementById('topicName').value;
+  const identifierPath = document.getElementById('identifierPath').value;
+  if(!name) return;
+  const params = new URLSearchParams();
+  params.append('topicName', name);
+  if(identifierPath) params.append('identifierPath', identifierPath);
+  axios.post('/api/mqtt/topic/add?'+params.toString()).then(()=>{
+    document.getElementById('topicName').value = '';
+    document.getElementById('identifierPath').value = '';
+    loadTopics();
+  });
+}
+function toggle(id, enabled){
+  axios.post('/api/mqtt/topic/toggle?id='+id+'&enabled='+enabled).then(()=>{loadTopics();});
+}
+function del(id){
+  axios.post('/api/mqtt/topic/delete?id='+id).then(()=>{loadTopics();});
+}
+loadConfig();
+loadTopics();
+</script>
+</body>
+</html>
+
+

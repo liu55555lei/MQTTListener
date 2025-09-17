@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>消息查询</title>
+  <link href="/webjars/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="/webjars/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+  <link rel="stylesheet" href="/webjars/choices.js/public/assets/styles/choices.min.css">
+  <style>body{padding:20px} pre{max-height:200px;overflow:auto;max-width: 1200px} .loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.6);display:none;align-items:center;justify-content:center;z-index:2000}</style>
+</head>
+<body>
+<div class="container" style="max-width: 100%">
+  <h4>消息查询</h4>
+  <div class="row g-2 mb-2">
+    <div class="col-md-3">
+      <select id="channel" class="form-control">
+        <option value="">选择通道</option>
+      </select>
+    </div>
+    <div class="col-md-3"><input id="start" class="form-control" placeholder="开始时间 yyyy-MM-dd HH:mm:ss"></div>
+    <div class="col-md-3"><input id="end" class="form-control" placeholder="结束时间 yyyy-MM-dd HH:mm:ss"></div>
+    <div class="col-md-3"><input id="pageSize" class="form-control" value="20" placeholder="每页条数"></div>
+  </div>
+  <div class="row g-2 mb-3">
+    <div class="col-md-6">
+      <textarea id="identifierValues" class="form-control" rows="3" placeholder="标识值(支持多行输入，每行一个值，查询时匹配任意一个即可)"></textarea>
+    </div>
+    <div class="col-md-2">
+      <button id="queryBtn" class="btn btn-primary" onclick="load(1)">查询</button>
+    </div>
+  </div>
+  <div id="result"></div>
+  <a href="/">返回首页</a>
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="d-flex align-items-center">
+      <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+      <span class="ms-2">加载中…</span>
+    </div>
+  </div>
+</div>
+<script src="/webjars/axios/dist/axios.min.js"></script>
+<script src="/webjars/choices.js/public/assets/scripts/choices.min.js"></script>
+<script>
+let currentPage = 1;
+let topicsList = [];
+let isLoading = false;
+let channelChoices = null;
+
+function showLoading(){
+  const overlay = document.getElementById('loadingOverlay');
+  if(overlay) overlay.style.display = 'flex';
+  const btn = document.getElementById('queryBtn');
+  if(btn) btn.disabled = true;
+}
+
+function hideLoading(){
+  const overlay = document.getElementById('loadingOverlay');
+  if(overlay) overlay.style.display = 'none';
+  const btn = document.getElementById('queryBtn');
+  if(btn) btn.disabled = false;
+}
+
+function loadTopics() {
+  axios.get('/api/mqtt/topic/list').then(res => {
+    topicsList = res.data.data || [];
+    const select = document.getElementById('channel');
+    const previous = channelChoices ? channelChoices.getValue(true) : (select ? select.value : '');
+    if (!channelChoices) {
+      channelChoices = new Choices('#channel', {
+        searchEnabled: true,
+        shouldSort: false,
+        placeholder: true,
+        placeholderValue: '选择通道',
+        searchPlaceholderValue: '输入关键字筛选',
+        itemSelectText: '按回车选择',
+        classNames: { containerOuter: 'choices w-100' }
+      });
+    }
+    const choiceItems = topicsList.map(t => ({
+      value: t.topicName,
+      label: t.topicName + (t.identifierPath ? ` (${t.identifierPath})` : ''),
+      selected: false
+    }));
+    channelChoices.clearChoices();
+    channelChoices.setChoices(choiceItems, 'value', 'label', true);
+    if (previous && topicsList.some(t => t.topicName === previous)) {
+      channelChoices.setChoiceByValue(previous);
+    }
+  });
+}
+
+function load(page){
+  if(isLoading) return;
+  isLoading = true;
+  showLoading();
+  currentPage = page;
+  const params = new URLSearchParams();
+  if(document.getElementById('channel').value) params.append('channelName', document.getElementById('channel').value);
+  if(document.getElementById('start').value) params.append('startTime', document.getElementById('start').value);
+  if(document.getElementById('end').value) params.append('endTime', document.getElementById('end').value);
+  
+  // 处理多行标识值
+  const identifierValues = document.getElementById('identifierValues').value;
+  if(identifierValues) {
+    const values = identifierValues.split('\n').filter(v => v.trim()).map(v => v.trim());
+    if(values.length > 0) {
+      params.append('identifierValues', values.join(','));
+    }
+  }
+  
+  params.append('pageNum', page);
+  params.append('pageSize', document.getElementById('pageSize').value||20);
+  
+  axios.get('/api/message/query?'+params.toString()).then(res=>{
+    const data = res.data.data;
+    const rows = (data.records||[]).map(r=>{
+      const jsonButton = r.dataContent ? `<button class='btn btn-sm btn-outline-info' onclick='showJson(${r.id})'>查看JSON</button>` : '';
+      return `<tr>
+        <td>${r.channelName}</td>
+        <td>${r.identifierValue || '-'}</td>
+        <td>${r.receiveTime||''}</td>
+        <td>${jsonButton}</td>
+      </tr>`;
+    }).join('');
+    
+    const html = `<table class='table table-sm'>
+      <thead><tr><th>通道名</th><th>标识信息</th><th>接收时间</th><th>操作</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`+
+      `<div class='d-flex gap-2'><button class='btn btn-secondary btn-sm' ${data.current<=1?'disabled':''} onclick='load(${data.current-1})'>上一页</button>`+
+      `<span>第 ${data.current} / ${data.pages} 页，共 ${data.total} 条</span>`+
+      `<button class='btn btn-secondary btn-sm' ${data.current>=data.pages?'disabled':''} onclick='load(${Number(data.current)+1})'>下一页</button></div>`;
+    document.getElementById('result').innerHTML = html;
+  }).catch(()=>{
+    // 可按需增加错误提示
+  }).finally(()=>{
+    hideLoading();
+    isLoading = false;
+  })
+}
+
+function showJson(id) {
+  axios.get('/api/message/detail/' + id).then(res => {
+    const data = res.data.data;
+    if(data) {
+      const preId = `json-content-${id}`;
+      const pretty = JSON.stringify(JSON.parse(data.dataContent), null, 2);
+      const modal = document.createElement('div');
+      modal.className = 'modal fade';
+      modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">JSON内容</h5>
+              <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="copyPre('${preId}')">复制</button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <pre id="${preId}" style="max-height: 400px; overflow: auto;">${pretty.replace(/</g,'&lt;')}</pre>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const bsModal = new bootstrap.Modal(modal);
+      bsModal.show();
+      modal.addEventListener('hidden.bs.modal', () => {
+        document.body.removeChild(modal);
+      });
+    }
+  });
+}
+
+function copyPre(preId){
+  const el = document.getElementById(preId);
+  if(!el) return;
+  const text = el.textContent;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>{
+      const btns = document.querySelectorAll(`[onclick="copyPre('${preId}')"]`);
+      btns.forEach(b=>{ b.disabled = true; setTimeout(()=>{ b.disabled = false; }, 800); });
+    });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+  }
+}
+
+loadTopics();
+load(1);
+</script>
+</body>
+</html>
+
+
