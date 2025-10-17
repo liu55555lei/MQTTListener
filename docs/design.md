@@ -21,7 +21,6 @@ common(配置、线程池、拦截器)
 - Paho AsyncClient + 自动重连
 - 线程池 `mqttExecutor` 消费消息
 - 队列汇聚 + 定时批量入库（可配置批量大小/间隔）
-- 基于 message_id/唯一键避免重复
 
 ### 可扩展性
 - ConfigService 提供 include/exclude 关键字过滤

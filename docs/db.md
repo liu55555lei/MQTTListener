@@ -6,7 +6,6 @@
   - channel_name VARCHAR(255)
   - data_content JSON
   - receive_time DATETIME DEFAULT CURRENT_TIMESTAMP
-  - message_id VARCHAR(64) UNIQUE（可空）
   - status TINYINT (1=正常,0=无效)
   - 索引：idx_channel_time(channel_name, receive_time)
 

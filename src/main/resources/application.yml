@@ -29,7 +29,8 @@ management:
 
 app:
   insert:
-    batch-size: 100
-    batch-interval-ms: 500
+    batch-size: 500      # 增加批量大小，提高写入性能
+    batch-interval-ms: 200  # 减少间隔时间，提高实时性
   retention:
-    days: 30
+    message-days: 7      # 消息保留7天
+    message-detail-days: 3  # 消息明细保留3天

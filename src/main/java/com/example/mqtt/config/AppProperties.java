@@ -20,7 +20,8 @@ public class AppProperties {
 
     @Data
     public static class RetentionProperties {
-        private int days = 30;
+        private int messageDays = 7; // 消息保留天数
+        private int messageDetailDays = 3; // 消息明细保留天数
     }
 
     @Data

@@ -101,7 +101,7 @@ public class MqttClientService implements SmartLifecycle {
         String identifierPath = getIdentifierPathForTopic(topic);
         
         // Per requirement: always store every received message; do not set messageId to avoid unique conflicts
-        batchWriter.enqueue(topic, null, payloadToStore, valid, identifierPath);
+        batchWriter.enqueue(topic, payloadToStore, valid, identifierPath);
     }
     
     private String getIdentifierPathForTopic(String topic) {

@@ -36,7 +36,6 @@ public class ConfigService {
         opt(map, "app.mqtt.keep-alive-seconds").ifPresent(v -> appProperties.getMqtt().setKeepAliveSeconds(Integer.parseInt(v)));
         opt(map, "app.insert.batch-size").ifPresent(v -> appProperties.getInsert().setBatchSize(Integer.parseInt(v)));
         opt(map, "app.insert.batch-interval-ms").ifPresent(v -> appProperties.getInsert().setBatchIntervalMs(Long.parseLong(v)));
-        opt(map, "app.retention.days").ifPresent(v -> appProperties.getRetention().setDays(Integer.parseInt(v)));
 
         includeKeywords = parseCsv(opt(map, "app.filter.include").orElse(""));
         excludeKeywords = parseCsv(opt(map, "app.filter.exclude").orElse(""));

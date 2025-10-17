@@ -1,17 +1,19 @@
 CREATE TABLE IF NOT EXISTS mqtt_message (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '自增主键',
+  id BIGINT PRIMARY KEY COMMENT '消息ID（雪花算法生成）',
   channel_name VARCHAR(255) NOT NULL COMMENT 'MQTT通道名称（Topic）',
-  data_content JSON NOT NULL COMMENT '消息内容（标准JSON格式，支持嵌套结构）',
   identifier_value VARCHAR(255) DEFAULT NULL COMMENT '标识位值（从JSON中提取的标识信息）',
   receive_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '消息接收时间（服务器时间）',
-  message_id VARCHAR(64) DEFAULT NULL COMMENT 'MQTT消息ID（可选，用于去重）',
   status TINYINT NOT NULL DEFAULT 1 COMMENT '数据状态：1-正常，0-无效（如格式错误）',
-  INDEX idx_channel_time (channel_name, receive_time),
-  INDEX idx_channel (channel_name),
-  INDEX idx_identifier (identifier_value),
-  -- MySQL 8 JSON index: create functional indexes as needed in optimization scripts
-  UNIQUE KEY uk_message_id (message_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MQTT消息持久化表';
+  INDEX idx_receive_time_desc (`receive_time` DESC, `id` DESC),
+  INDEX idx_channel_time (`channel_name`, `receive_time` DESC, `id` DESC),
+  INDEX idx_identifier_time_desc (`identifier_value`, `receive_time` DESC, `id` DESC),
+  INDEX idx_cover_stats (`channel_name`, `identifier_value`, `receive_time` DESC, `id` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MQTT消息主表（不包含JSON内容）';
+
+CREATE TABLE IF NOT EXISTS mqtt_message_detail (
+  id BIGINT PRIMARY KEY COMMENT '消息ID（与mqtt_message表id保持一致）',
+  json_content JSON NOT NULL COMMENT '消息的JSON内容'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MQTT消息明细信息表（存储JSON内容）';
 
 CREATE TABLE IF NOT EXISTS system_config (
   id INT PRIMARY KEY AUTO_INCREMENT COMMENT '配置ID',
